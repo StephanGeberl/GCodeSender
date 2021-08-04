@@ -1,0 +1,447 @@
+/*
+    Copyright 2020 Stephan Geberl
+
+    This file is part of Universal Gcode Sender (UGS) (5 Axis-Version).
+
+    UGS is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    UGS is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with UGS.  If not, see <http://www.gnu.org/licenses/>.
+ */
+package com.geberl.gcodesender.uielements.components;
+
+import javax.swing.*;
+
+import com.geberl.gcodesender.IController;
+import com.geberl.gcodesender.Utils;
+import com.geberl.gcodesender.listeners.ControllerListener;
+import com.geberl.gcodesender.listeners.ControllerStatus;
+import com.geberl.gcodesender.listeners.UGSEventListener;
+import com.geberl.gcodesender.model.Alarm;
+import com.geberl.gcodesender.model.BackendAPI;
+import com.geberl.gcodesender.model.Position;
+import com.geberl.gcodesender.model.UGSEvent.ControlState;
+import com.geberl.gcodesender.types.GcodeCommand;
+import com.geberl.gcodesender.utils.FirmwareUtils;
+import com.geberl.gcodesender.utils.GUIHelpers;
+import com.geberl.gcodesender.utils.GcodeStreamReader;
+import com.geberl.gcodesender.utils.IGcodeStreamReader;
+import com.geberl.gcodesender.utils.Settings;
+import com.geberl.gcodesender.utils.SettingsFactory;
+
+import static com.geberl.gcodesender.utils.GUIHelpers.displayErrorDialog;
+
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.event.ActionListener;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.awt.event.ActionEvent;
+
+public class ProjectFilePanel extends JPanel implements UGSEventListener, ControllerListener {
+
+	private final BackendAPI backend;
+	private Logger logger;
+    private javax.swing.JFileChooser fileChooser;
+    private Settings settings;
+    private Timer timer;
+	private String gcodeFile = null;
+	private String processedGcodeFile = null;
+
+    private JLabel rowsValueLabel;
+    private JLabel remainingTimeValueLabel;
+    private JLabel sentRowsValueLabel;
+    private JLabel remainingRowsValueLabel;
+    private JLabel durationValueLabel;
+    
+    private JButton sendButton;
+    private JButton cancelButton;
+    private JButton pauseButton;
+    private JButton saveButton;
+    private JButton browseButton;
+    private JLabel fileNameLabel;
+  
+    
+	public ProjectFilePanel(BackendAPI backend, Logger logger) {
+
+		this.backend = backend;
+        this.logger = logger;
+        this.settings = SettingsFactory.loadSettings();
+        fileChooser = new JFileChooser(settings.getLastOpenedFilename());
+        initComponents();
+
+        if (this.backend != null) {
+        	
+            this.backend.addUGSEventListener(this);
+            this.backend.addControllerListener(this);
+             
+        }
+
+     }
+	
+    private void initComponents() {
+        
+        setLayout(null);
+        
+        JLabel lblNewLabel = new JLabel("Rows in File");
+        lblNewLabel.setFont(new Font("DejaVu Sans", Font.PLAIN, 12));
+        lblNewLabel.setBounds(6, 6, 80, 15);
+        add(lblNewLabel);
+        
+        JLabel lblNewLabel_1 = new JLabel("Sent Rows");
+        lblNewLabel_1.setFont(new Font("DejaVu Sans", Font.PLAIN, 12));
+        lblNewLabel_1.setBounds(6, 23, 80, 15);
+        add(lblNewLabel_1);
+        
+        JLabel lblNewLabel_2 = new JLabel("Rem. Rows");
+        lblNewLabel_2.setFont(new Font("DejaVu Sans", Font.PLAIN, 12));
+        lblNewLabel_2.setBounds(6, 40, 80, 15);
+        add(lblNewLabel_2);
+        
+        JLabel lblNewLabel_3 = new JLabel("Time Rem.");
+        lblNewLabel_3.setFont(new Font("Dialog", Font.PLAIN, 12));
+        lblNewLabel_3.setBounds(6, 59, 80, 15);
+        add(lblNewLabel_3);
+        
+        rowsValueLabel = new JLabel("0");
+        rowsValueLabel.setFont(new Font("DejaVu Sans", Font.PLAIN, 12));
+        rowsValueLabel.setBounds(91, 6, 90, 15);
+        add(rowsValueLabel);
+        rowsValueLabel.setOpaque(true);
+        
+        remainingTimeValueLabel = new JLabel("");
+        remainingTimeValueLabel.setFont(new Font("DejaVu Sans", Font.PLAIN, 12));
+        remainingTimeValueLabel.setBounds(91, 59, 90, 15);
+        remainingTimeValueLabel.setText("--:--:--");
+        add(remainingTimeValueLabel);
+        
+        sentRowsValueLabel = new JLabel("0");
+        sentRowsValueLabel.setFont(new Font("DejaVu Sans", Font.PLAIN, 12));
+        sentRowsValueLabel.setOpaque(true);
+        sentRowsValueLabel.setBounds(91, 23, 90, 15);
+        add(sentRowsValueLabel);
+        
+        remainingRowsValueLabel = new JLabel("0");
+        remainingRowsValueLabel.setFont(new Font("DejaVu Sans", Font.PLAIN, 12));
+        remainingRowsValueLabel.setOpaque(true);
+        remainingRowsValueLabel.setBounds(91, 40, 90, 15);
+        add(remainingRowsValueLabel);
+        
+        JLabel lblNewLabel_3_1 = new JLabel("Duration");
+        lblNewLabel_3_1.setFont(new Font("Dialog", Font.PLAIN, 12));
+        lblNewLabel_3_1.setBounds(6, 77, 80, 15);
+        add(lblNewLabel_3_1);
+        
+        durationValueLabel = new JLabel("");
+        durationValueLabel.setFont(new Font("DejaVu Sans", Font.PLAIN, 12));
+        durationValueLabel.setBounds(91, 77, 90, 15);
+        durationValueLabel.setText("00:00:00");
+        add(durationValueLabel);
+        
+        sendButton = new JButton("Send");
+        sendButton.addActionListener(new ActionListener() {
+        	public void actionPerformed(ActionEvent arg0) {
+        		sendButtonActionPerformed(arg0);
+        	}
+        });
+        sendButton.setEnabled(false);
+        sendButton.setBounds(6, 169, 165, 27);
+        add(sendButton);
+        
+        pauseButton = new JButton("Pause");
+        pauseButton.addActionListener(new ActionListener() {
+        	public void actionPerformed(ActionEvent arg0) {
+        		pauseButtonActionPerformed(arg0);
+        	}
+        });
+        pauseButton.setEnabled(false);
+        pauseButton.setBounds(6, 114, 80, 27);
+        add(pauseButton);
+        
+        cancelButton = new JButton("Cancel");
+        cancelButton.addActionListener(new ActionListener() {
+        	public void actionPerformed(ActionEvent arg0) {
+        		cancelButtonActionPerformed(arg0);
+        	}
+        });
+        cancelButton.setEnabled(false);
+        cancelButton.setBounds(91, 114, 80, 27);
+        add(cancelButton);
+        
+        browseButton = new JButton("Browse");
+        browseButton.addActionListener(new ActionListener() {
+        	public void actionPerformed(ActionEvent arg0) {
+        		browseButtonActionPerformed(arg0);
+        	}
+        });
+        browseButton.setBounds(6, 141, 80, 27);
+        add(browseButton);
+        
+        saveButton = new JButton("Save");
+        saveButton.addActionListener(new ActionListener() {
+        	public void actionPerformed(ActionEvent arg0) {
+        		saveButtonActionPerformed(arg0);
+        	}
+        });
+        saveButton.setEnabled(false);
+        saveButton.setBounds(91, 141, 80, 27);
+        add(saveButton);
+        
+        fileNameLabel = new JLabel("");
+        fileNameLabel.setFont(new Font("DejaVu Sans", Font.PLAIN, 12));
+        fileNameLabel.setBounds(6, 95, 175, 15);
+        add(fileNameLabel);
+        
+    }
+
+    public void cancelButtonActionPerformed() {
+        try {
+            backend.cancel();
+        } catch (Exception e) {
+            displayErrorDialog(e.getMessage());
+        }
+    }
+    
+    private void cancelButtonActionPerformed(java.awt.event.ActionEvent evt) {
+        cancelButtonActionPerformed();
+    }
+
+    public void pauseButtonActionPerformed() {
+        try {
+            this.backend.pauseResume();
+        } catch (Exception e) {
+            displayErrorDialog(e.getMessage());
+        }
+    }
+    
+    private void pauseButtonActionPerformed(java.awt.event.ActionEvent evt) {
+        pauseButtonActionPerformed();
+    }
+ 
+    private void sendButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_sendButtonActionPerformed
+        // Timer for updating duration labels.
+        ActionListener actionListener = new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent actionEvent) {
+                java.awt.EventQueue.invokeLater(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            durationValueLabel.setText(Utils.formattedMillis(backend.getSendDuration()));
+                            remainingTimeValueLabel.setText(Utils.formattedMillis(backend.getSendRemainingDuration()));
+
+                            //sentRowsValueLabel.setText(""+sentRows);
+                            sentRowsValueLabel.setText(""+backend.getNumCompletedRows());
+                            remainingRowsValueLabel.setText("" + backend.getNumRemainingRows());
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
+                });
+
+            }
+        };
+
+        this.resetTimerLabels();
+
+        if (timer != null){ timer.stop(); }
+        timer = new Timer(1000, actionListener);
+
+        // Note: there is a divide by zero error in the timer because it uses
+        //       the rowsValueLabel that was just reset.
+
+        try {
+            this.backend.send();
+            this.resetSentRowLabels(backend.getNumRows());
+            timer.start();
+        } catch (Exception e) {
+            timer.stop();
+            logger.log(Level.INFO, "Exception in sendButtonActionPerformed.", e);
+            displayErrorDialog(e.getMessage());
+        }
+        
+    }
+    
+    
+    private void saveButtonActionPerformed(java.awt.event.ActionEvent evt) {
+        
+        int returnVal = fileChooser.showSaveDialog(this);
+        if (returnVal == JFileChooser.APPROVE_OPTION) {
+            try {
+                File newFile = fileChooser.getSelectedFile();
+                IController controller = FirmwareUtils.getControllerFor("GRBL").get();
+                backend.applySettingsToController(settings, controller);
+                
+                backend.preprocessAndExportToFile(newFile);
+            } catch (FileNotFoundException ex) {
+                displayErrorDialog("Problem opening file" + ": " + ex.getMessage());
+            } catch (IOException e) {
+                displayErrorDialog("Unknown IOException while processing file" + ": "+e.getMessage());
+            } catch (Exception e) {
+                logger.log(Level.INFO, "Exception in saveButtonActionPerformed.", e);
+                displayErrorDialog("Exception occurred during save" + ": " + e.getMessage());
+            }
+        }
+        
+    }
+
+    private void resetTimerLabels() {
+        // Reset labels
+        this.durationValueLabel.setText("00:00:00");
+        if (this.backend.isConnected()) {
+            if (this.backend.getSendDuration() < 0) {
+                this.remainingTimeValueLabel.setText("estimating...");
+            } else if (this.backend.getSendDuration() == 0) {
+                this.remainingTimeValueLabel.setText("--:--:--");
+            } else {
+                this.remainingTimeValueLabel.setText(Utils.formattedMillis(this.backend.getSendDuration()));
+            }
+        }
+    }
+   
+    private void resetSentRowLabels(long numRows) {
+        // Reset labels
+        String totalRows =  String.valueOf(numRows);
+        resetTimerLabels();
+        this.sentRowsValueLabel.setText("0");
+        this.remainingRowsValueLabel.setText(totalRows);
+        this.rowsValueLabel.setText(totalRows);
+    }
+   
+    private void browseButtonActionPerformed(java.awt.event.ActionEvent evt) {
+        int returnVal = fileChooser.showOpenDialog(this);
+        if (returnVal == JFileChooser.APPROVE_OPTION) {
+            try {
+                File gcodeFile = fileChooser.getSelectedFile();
+                GUIHelpers.openGcodeFile(gcodeFile, backend);
+            } catch (Exception ex) {
+                logger.log(Level.SEVERE, "Problem while browsing.", ex);
+                displayErrorDialog(ex.getMessage());
+            }
+        } else {
+            // Canceled file open.
+        }
+    }
+
+	@Override
+	public void UGSEvent(com.geberl.gcodesender.model.UGSEvent evt) {
+		
+        if (evt.isFileChangeEvent() || evt.isStateChangeEvent()) {
+            this.cancelButton.setEnabled(backend.canCancel());
+            this.pauseButton.setEnabled(backend.canPause() || backend.isPaused());
+            this.pauseButton.setText(backend.getPauseResumeText());
+            this.sendButton.setEnabled(backend.canSend());
+            
+            boolean hasFile = backend.getGcodeFile() != null;
+            if (hasFile) { this.saveButton.setEnabled(true); }
+
+            saveButton.setEnabled(backend.isIdle());
+        	browseButton.setEnabled(backend.isIdle());
+        }
+
+        if (evt.isFileChangeEvent()) {
+            switch(evt.getFileState()) {
+                case FILE_LOADING:
+                    File f = backend.getGcodeFile();
+                    this.fileNameLabel.setText(backend.getGcodeFile().getName());
+                    this.fileNameLabel.setForeground(Color.RED);
+                    processedGcodeFile = null;
+                    gcodeFile = evt.getFile();
+                    break;
+                case FILE_LOADED:
+                    processedGcodeFile = evt.getFile();
+                    try {
+                        try (IGcodeStreamReader gsr = new GcodeStreamReader(backend.getProcessedGcodeFile())) {
+                            resetSentRowLabels(gsr.getNumRows());
+                        }
+                    } catch (IOException | GcodeStreamReader.NotGcodeStreamFile ex) {}
+                    break;
+                default:
+                    break;
+            }
+
+        }
+		
+	}
+
+	@Override
+	public void controlStateChange(ControlState state) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void fileStreamComplete(String filename, boolean success) {
+
+        if (success) {
+            java.awt.EventQueue.invokeLater(new Runnable() { @Override public void run() {
+                JOptionPane.showMessageDialog(new JFrame(),
+                        "Job complete after " + Utils.formattedMillis(backend.getSendDuration()),
+                        "Success", JOptionPane.INFORMATION_MESSAGE);
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException ex) {}
+
+ 
+            }});
+        } else {
+            displayErrorDialog("Job completed with error");
+        }
+		
+	}
+
+	@Override
+	public void receivedAlarm(Alarm alarm) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void commandSkipped(GcodeCommand command) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void commandSent(GcodeCommand command) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void commandComplete(GcodeCommand command) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void commandComment(String comment) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void probeCoordinates(Position p) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void statusStringListener(ControllerStatus status) {
+		// TODO Auto-generated method stub
+		
+	}
+}
+    
+    

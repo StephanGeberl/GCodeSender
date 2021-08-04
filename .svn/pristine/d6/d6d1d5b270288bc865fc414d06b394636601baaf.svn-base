@@ -1,0 +1,395 @@
+/*
+    Copyright 2020 Stephan Geberl
+
+    This file is part of WireCutter/Mill GCode - Sender (WGS) (5 Axis-Version).
+    WGS is derived from UGS by Will Winder (2012 - 2018)
+
+    WGS is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    WGS is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with WGS.  If not, see <http://www.gnu.org/licenses/>.
+ */
+package com.geberl.gcodesender.uielements.components;
+
+import java.awt.Font;
+
+import javax.swing.*;
+
+import com.geberl.gcodesender.listeners.ControllerListener;
+import com.geberl.gcodesender.listeners.ControllerStatus;
+import com.geberl.gcodesender.listeners.UGSEventListener;
+import com.geberl.gcodesender.model.Alarm;
+import com.geberl.gcodesender.model.BackendAPI;
+import com.geberl.gcodesender.model.Position;
+import com.geberl.gcodesender.model.UGSEvent;
+import com.geberl.gcodesender.services.JogService;
+import com.geberl.gcodesender.types.GcodeCommand;
+import com.geberl.gcodesender.utils.Settings;
+
+public class MoveCommandPanel extends JPanelBackground implements UGSEventListener, ControllerListener {
+	private static final long serialVersionUID = 1L;
+
+	private BackendAPI backend;
+	private JogService jogService;
+	private boolean moveLeftSide = true;
+	private boolean moveRightSide = true;
+	private StepSizeSpinner stepSizeSpinner = new StepSizeSpinner();
+	private StepSizeSpinner feedRateSpinner = new StepSizeSpinner();
+	
+	private JButton yaPlusButton = new JButton(new javax.swing.ImageIcon(getClass().getResource("/resources/icons/ButtonRedUp.gif"))); // "+Z (YA)"
+	private JButton yaMinusButton = new JButton(new javax.swing.ImageIcon(getClass().getResource("/resources/icons/ButtonRedDown.gif"))); // "-Z (YA)"
+	
+	private JButton xzPlusButton = new JButton(new javax.swing.ImageIcon(getClass().getResource("/resources/icons/ButtonBlueForeward.gif"))); // "+Y (XZ)"
+	private JButton xzMinusButton = new JButton(new javax.swing.ImageIcon(getClass().getResource("/resources/icons/ButtonBlueBack.gif"))); // "-Y (XZ)"
+
+	private JButton bPlusButton = new JButton(new javax.swing.ImageIcon(getClass().getResource("/resources/icons/ButtonGreenRight.gif"))); // "+X (B)"
+	private JButton bMinusButton = new JButton(new javax.swing.ImageIcon(getClass().getResource("/resources/icons/ButtonGreenLeft.gif"))); // "-X (B)"
+
+	private JCheckBox chkMoveLeftSide = new JCheckBox("Left side (XY)");
+	private JCheckBox chkMoveRightSide = new JCheckBox("Right side (ZA)");
+	private JLabel stepSizeLabel = new JLabel("Step");
+	private JLabel feedRateLabel = new JLabel("Speed");
+
+    
+	public MoveCommandPanel(BackendAPI backend, JogService jogService, boolean showKeyboardToggle) {
+
+		setBackgroundImagePath("/resources/icons/Fraesenbild.gif");
+		this.backend = backend;
+        this.jogService = jogService;
+
+		this.moveLeftSide = true;
+		this.moveRightSide = true;
+
+        initComponents();
+
+        
+        if (this.backend != null) {
+        	
+            this.backend.addUGSEventListener(this);
+            this.backend.addControllerListener(this);
+
+    		syncWithJogService();
+             
+        }
+
+    }
+
+	private void syncWithJogService() {
+		Settings s = backend.getSettings();
+		stepSizeSpinner.setValue(s.getManualModeStepSize());
+		feedRateSpinner.setValue(s.getJogFeedRate());
+	}
+
+	
+    private void initComponents() {
+    	
+        setLayout(null);
+        
+        feedRateLabel.setBounds(453, 12, 56, 25);
+        add(feedRateLabel);
+        feedRateLabel.setHorizontalAlignment(SwingConstants.LEFT);
+        feedRateSpinner.setBounds(451, 37, 92, 25);
+        add(feedRateSpinner);
+        feedRateSpinner.addChangeListener(cl -> jogService.setFeedRate(feedRateSpinner.getValue()));
+ 
+        stepSizeLabel.setBounds(453, 62, 56, 25);
+        add(stepSizeLabel);
+        stepSizeLabel.setHorizontalAlignment(SwingConstants.LEFT);
+        stepSizeSpinner.setBounds(453, 99, 92, 25);
+        add(stepSizeSpinner);
+        stepSizeSpinner.addChangeListener(cl -> jogService.setStepSize(stepSizeSpinner.getValue()));
+       
+
+        chkMoveLeftSide.setBounds(45, 365, 160, 25);
+        chkMoveLeftSide.setFont(new Font("DejaVu Sans", Font.BOLD, 16));
+        add(chkMoveLeftSide);
+        chkMoveLeftSide.setEnabled(false);
+        chkMoveLeftSide.setSelected(true);
+        
+        chkMoveRightSide.setBounds(323, 365, 160, 25);
+        chkMoveRightSide.setFont(new Font("DejaVu Sans", Font.BOLD, 16));
+        add(chkMoveRightSide);
+        chkMoveRightSide.setEnabled(false);
+        chkMoveRightSide.setSelected(true);
+
+        chkMoveRightSide.addActionListener(e -> toggleMoveSide());
+        chkMoveLeftSide.addActionListener(e -> toggleMoveSide());
+        
+        
+        bMinusButton.setBounds(172, 12, 80, 50);
+        // bMinusButton.setFont(new Font("DejaVu Sans", Font.BOLD, 16));
+        add(bMinusButton);
+        bMinusButton.setEnabled(false);
+        bMinusButton.addActionListener(e -> bMinusButtonActionPerformed());
+        
+        bPlusButton.setBounds(312, 12, 80, 50);
+        // bPlusButton.setFont(new Font("DejaVu Sans", Font.BOLD, 16));
+        add(bPlusButton);
+        bPlusButton.setEnabled(false);
+        bPlusButton.addActionListener(e -> bPlusButtonActionPerformed());
+        
+        xzPlusButton.setBounds(403, 291, 80, 50);
+        // xzPlusButton.setFont(new Font("DejaVu Sans", Font.BOLD, 16));
+        add(xzPlusButton);
+        xzPlusButton.setEnabled(false);
+        xzPlusButton.addActionListener(e -> xzPlusButtonActionPerformed());
+        
+        xzMinusButton.setBounds(453, 182, 80, 50);
+        // xzMinusButton.setFont(new Font("DejaVu Sans", Font.BOLD, 16));
+        add(xzMinusButton);
+        xzMinusButton.setEnabled(false);
+        xzMinusButton.addActionListener(e -> xzMinusButtonActionPerformed());
+        
+        // Z- Achse
+        yaPlusButton.setBounds(45, 99, 80, 50);
+        // yaPlusButton.setFont(new Font("DejaVu Sans", Font.BOLD, 16));
+        add(yaPlusButton);
+        yaPlusButton.setEnabled(false);
+        yaPlusButton.addActionListener(e -> yaPlusButtonActionPerformed());
+        
+        yaMinusButton.setBounds(45, 210, 80, 50);
+        // yaMinusButton.setFont(new Font("DejaVu Sans", Font.BOLD, 16));
+        add(yaMinusButton);
+        yaMinusButton.setEnabled(false);
+        yaMinusButton.addActionListener(e -> yaMinusButtonActionPerformed());
+        
+        
+ 
+
+    }
+    
+    
+    @Override
+    public void UGSEvent(UGSEvent evt) {
+
+        if (evt.isSettingChangeEvent()) {
+
+        }
+    	
+    	if (evt.isStateChangeEvent() || evt.isSettingChangeEvent()) {
+         	updateControls();
+        }
+    }
+
+	private void updateControls() {
+		
+		syncWithJogService();
+
+		switch (backend.getControlState()) {
+			case COMM_DISCONNECTED:
+			case COMM_SENDING_PAUSED:
+			case COMM_CHECK:
+			default:
+				updateManualControls(false);
+				break;
+			case COMM_IDLE:
+			case COMM_SENDING:
+				updateManualControls(!backend.isSendingFile());
+				break;
+		}
+	}
+
+	// Handle Side
+	
+	private void toggleMoveSide() {
+		if (chkMoveRightSide.isSelected()) { this.moveRightSide = true; } 
+		else { this.moveRightSide = false; }
+		if (chkMoveLeftSide.isSelected()) { this.moveLeftSide = true; } 
+		else { this.moveLeftSide = false; }
+		
+	}
+
+	// ENDE - Handle Units
+	
+	
+	public void increaseStepActionPerformed() {
+		jogService.increaseStepSize();
+		stepSizeSpinner.setValue(getStepSize());
+	}
+
+	public void decreaseStepActionPerformed() {
+		jogService.decreaseStepSize();
+		stepSizeSpinner.setValue(getStepSize());
+	}
+
+	public void multiplyStepActionPerformed() {
+		jogService.multiplyStepSize();
+		stepSizeSpinner.setValue(getStepSize());
+	}
+
+	public void divideStepActionPerformed() {
+		jogService.divideStepSize();
+		stepSizeSpinner.setValue(getStepSize());
+	}
+
+    @Override
+    public void controlStateChange(UGSEvent.ControlState state) {
+    }
+
+    @Override
+    public void fileStreamComplete(String filename, boolean success) {
+
+    }
+
+    @Override
+    public void receivedAlarm(Alarm alarm) {
+
+    }
+
+    @Override
+    public void commandSkipped(GcodeCommand command) {
+
+    }
+
+    @Override
+    public void commandSent(GcodeCommand command) {
+
+    }
+
+    @Override
+    public void commandComment(String comment) {
+    }
+
+    @Override
+    public void probeCoordinates(Position p) {
+    }
+
+    @Override
+    public void commandComplete(GcodeCommand command) {
+
+    }
+
+	@Override
+	public void statusStringListener(ControllerStatus status) {
+	    updateControls();
+	    
+	    if (status == null) { return; }
+
+	    if (status.getMachineCoord() != null) {
+
+	    }
+	    
+	}
+
+	private double getStepSize() {
+		double stepSize = stepSizeSpinner.getValue();
+		backend.getSettings().setManualModeStepSize(stepSize);
+		return stepSize;
+	}
+
+    // Bewegung 
+	public void doJog(int x, int y, int z, int a) {
+		try {
+			jogService.adjustManualLocation(x, y, z, a);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	public void doJog(int x, int y, int z, int a, int b) {
+		try {
+			jogService.adjustManualLocation(x, y, z, a, b);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	// ***** Buttons Actions *****
+	// ***** Steuerung *****
+
+ 	
+	// ***** Bewegung *****
+	public void xzPlusButtonActionPerformed() {
+		if (this.moveRightSide && this.moveLeftSide) { this.doJog(1, 0, 1, 0, 0); }
+		else {
+			if (this.moveRightSide) { this.doJog(0, 0, 1, 0, 0); };
+			if (this.moveLeftSide) { this.doJog(1, 0, 0, 0, 0); };
+		};
+	}
+
+	public void xzMinusButtonActionPerformed() {
+		if (this.moveRightSide && this.moveLeftSide) { this.doJog(-1, 0, -1, 0, 0); }
+		else {
+			if (this.moveRightSide) { this.doJog(0, 0, -1, 0, 0); };
+			if (this.moveLeftSide) { this.doJog(-1, 0, 0, 0, 0); };
+		};
+	}
+
+	public void yaPlusButtonActionPerformed() {
+		if (this.moveRightSide && this.moveLeftSide) { this.doJog(0, 1, 0, 1, 0); }
+		else {
+			if (this.moveRightSide) { this.doJog(0, 0, 0, 1, 0); };
+			if (this.moveLeftSide) { this.doJog(0, 1, 0, 0, 0); };
+		};
+	}
+
+	public void yaMinusButtonActionPerformed() {
+		if (this.moveRightSide && this.moveLeftSide) { this.doJog(0, -1, 0, -1, 0); }
+		else {
+			if (this.moveRightSide) { this.doJog(0, 0, 0, -1, 0); };
+			if (this.moveLeftSide) { this.doJog(0, -1, 0, 0, 0); };
+		};
+	}
+
+	public void bPlusButtonActionPerformed() {
+		if (backend.isMillMode()) { this.doJog(0, 0, 0, 0, 1); };
+	}
+
+	public void bMinusButtonActionPerformed() {
+		if (backend.isMillMode()) { this.doJog(0, 0, 0, 0, -1); };
+	}
+	// ***** Ende Buttons Actions *****
+
+	
+	// ***** Enable/Disable Actions *****
+
+	public void updateManualControls(boolean enabled) {
+		
+		// Enabled when connected
+		this.yaMinusButton.setEnabled(enabled);
+		this.yaPlusButton.setEnabled(enabled);
+		this.xzMinusButton.setEnabled(enabled);
+		this.xzPlusButton.setEnabled(enabled);
+		this.feedRateSpinner.setEnabled(enabled);
+		this.stepSizeSpinner.setEnabled(enabled);
+		this.feedRateLabel.setEnabled(enabled);
+		this.stepSizeLabel.setEnabled(enabled);
+		
+		// Enabled depending Mill or HotWire
+		if (enabled == false) {
+			this.bPlusButton.setEnabled(enabled);
+			this.bMinusButton.setEnabled(enabled);
+			this.chkMoveLeftSide.setSelected(true);
+			this.chkMoveRightSide.setSelected(true);
+			this.chkMoveLeftSide.setEnabled(false);
+			this.chkMoveRightSide.setEnabled(false);
+		}
+		else {
+			if (this.backend.isMillMode()) {
+				this.bPlusButton.setEnabled(true);
+				this.bMinusButton.setEnabled(true);
+				this.chkMoveLeftSide.setEnabled(false);
+				this.chkMoveRightSide.setEnabled(false);
+				this.chkMoveLeftSide.setSelected(true);
+				this.chkMoveRightSide.setSelected(true);
+			}
+			else {
+				this.bPlusButton.setEnabled(false);
+				this.bMinusButton.setEnabled(false);
+				this.chkMoveLeftSide.setEnabled(true);
+				this.chkMoveRightSide.setEnabled(true);
+			};
+		};
+	
+	}
+
+
+}

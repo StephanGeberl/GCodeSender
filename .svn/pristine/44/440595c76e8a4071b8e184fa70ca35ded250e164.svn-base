@@ -1,0 +1,875 @@
+/*
+    Copyright 2020 Stephan Geberl
+
+    This file is part of WireCutter/Mill GCode - Sender (WGS) (5 Axis-Version).
+    WGS is derived from UGS by Will Winder (2012 - 2018)
+
+    WGS is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    WGS is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with WGS.  If not, see <http://www.gnu.org/licenses/>.
+ */
+package com.geberl.gcodesender.uielements.components;
+
+import javax.swing.*;
+
+import com.geberl.gcodesender.utils.FirmwareUtils;
+import com.geberl.gcodesender.Utils;
+import com.geberl.gcodesender.listeners.ControllerListener;
+import com.geberl.gcodesender.listeners.ControllerStatus;
+import com.geberl.gcodesender.listeners.UGSEventListener;
+import com.geberl.gcodesender.model.Alarm;
+import com.geberl.gcodesender.model.BackendAPI;
+import com.geberl.gcodesender.model.Position;
+import com.geberl.gcodesender.model.UGSEvent;
+import com.geberl.gcodesender.model.UnitUtils.Units;
+import com.geberl.gcodesender.services.JogService;
+import com.geberl.gcodesender.types.GcodeCommand;
+import com.geberl.gcodesender.uielements.dialog.ProgramSettingsPanel;
+import com.geberl.gcodesender.uielements.dialog.ControllerProcessorSettingsPanel;
+import com.geberl.gcodesender.uielements.dialog.FirmwareSettingsDialog;
+import com.geberl.gcodesender.uielements.dialog.StandardDialogTemplate;
+import com.geberl.gcodesender.utils.Settings;
+import com.geberl.gcodesender.utils.SettingsFactory;
+import static com.geberl.gcodesender.utils.GUIHelpers.displayErrorDialog;
+
+import java.awt.event.ActionListener;
+import java.awt.event.ActionEvent;
+import java.awt.Color;
+import java.awt.Font;
+
+public class MoveCommandPanel extends JPanel implements UGSEventListener, ControllerListener {
+
+	private BackendAPI backend;
+	private JogService jogService;
+    private Settings settings;
+	private boolean moveLeftSide = true;
+	private boolean moveRightSide = true;
+	private StepSizeSpinner stepSizeSpinner = new StepSizeSpinner();
+	private StepSizeSpinner feedRateSpinner = new StepSizeSpinner();
+	private JRadioButton rdbtnMm = new JRadioButton("mm");
+	private JRadioButton rdbtnInch = new JRadioButton("inch");
+	private JButton yaPlusButton = new JButton("+Z (YA)");
+	private JButton xzPlusButton = new JButton("+Y (XZ)");
+	private JButton yaMinusButton = new JButton("-Z (YA)");
+	private JButton xzMinusButton = new JButton("-Y (XZ)");
+	private JButton bPlusButton = new JButton("+X (B)");
+	private JButton bMinusButton = new JButton("-X (B)");
+	private JCheckBox chkMoveLeftSide = new JCheckBox("Left side (XY)");
+	private JCheckBox chkMoveRightSide = new JCheckBox("Right side (ZA)");
+	private JLabel stepSizeLabel = new JLabel("Step");
+	private JLabel feedRateLabel = new JLabel("Speed");
+	private ButtonGroup unitButtonGroup = new ButtonGroup();
+
+	private JButton killAlarmLock = new JButton("Unlock ($X)");
+	private JButton helpButtonMachineControl = new JButton("Help ...");
+	private JButton softResetMachineControl = new JButton("Soft Reset");
+	private JButton returnToZeroButton = new JButton("Return to Zero");
+	private JButton resetCoordinatesButton = new JButton("Reset Zero");
+	private JButton storePosition = new JButton("Pos");
+	private JButton storeSaveHeight = new JButton("SH");
+	private JButton gotoStoredPosition = new JButton("Goto Stored");
+	private JButton performHomingCycleButton = new JButton("Home ($H)");
+	private final JButton btnSenderSettings = new JButton("General ...");
+	private final JButton btnGcodeSettings = new JButton("GCode ...");
+	private final JButton btnFirmwareSettings = new JButton("GRBL ...");
+	
+	private JLabel xStoredValue = new JLabel("0.00");
+	private JLabel yStoredValue = new JLabel("0.00");
+	private JLabel zStoredValue = new JLabel("0.00");
+
+    private final JLabel saveHeight = new JLabel("0.00");
+    
+    private final JLabel unitsString01 = new JLabel("mm");
+    private final JLabel unitsString02 = new JLabel("mm");
+    private final JLabel unitsString03 = new JLabel("mm");
+    private final JLabel unitsString04 = new JLabel("mm");
+
+    private double xActualValue = 0.00;
+	private double yActualValue = 0.00;
+    private double zActualValue = 0.00;
+    private double saveHeightActualValue = 0.00;
+    private Units unitsActualValue = Units.MM;
+
+    private double xSavedValue = 0.00;
+	private double ySavedValue = 0.00;
+    private double zSavedValue = 0.00;
+    private double saveHeightSavedValue = 0.00;
+    private Units unitsSavedValue = Units.MM;
+
+
+    
+	public MoveCommandPanel(BackendAPI backend, JogService jogService, boolean showKeyboardToggle, Settings settings) {
+
+		this.backend = backend;
+        this.settings = settings;
+        this.jogService = jogService;
+ 
+        initComponents();
+
+        
+        if (this.backend != null) {
+        	
+            this.backend.addUGSEventListener(this);
+            this.backend.addControllerListener(this);
+
+    		syncWithJogService();
+    		updateUnitButton();
+            
+            this.setSavedPositionTexts();
+             
+        }
+
+    }
+
+	private void syncWithJogService() {
+		Settings s = backend.getSettings();
+		stepSizeSpinner.setValue(s.getManualModeStepSize());
+		feedRateSpinner.setValue(s.getJogFeedRate());
+	}
+
+	
+    private void initComponents() {
+    	
+        setLayout(null);
+        bMinusButton.setBounds(98, 75, 80, 51);
+        add(bMinusButton);
+        bMinusButton.setEnabled(false);
+        stepSizeLabel.setBounds(201, 6, 56, 25);
+        add(stepSizeLabel);
+        stepSizeLabel.setHorizontalAlignment(SwingConstants.LEFT);
+        feedRateLabel.setBounds(201, 35, 56, 25);
+        add(feedRateLabel);
+        feedRateLabel.setHorizontalAlignment(SwingConstants.LEFT);
+        unitButtonGroup.add(rdbtnMm);
+        unitButtonGroup.add(rdbtnInch);
+        chkMoveLeftSide.setBounds(201, 138, 129, 23);
+        add(chkMoveLeftSide);
+        
+        chkMoveLeftSide.setEnabled(false);
+        chkMoveLeftSide.setSelected(true);
+		this.moveLeftSide = true;
+        chkMoveRightSide.setBounds(201, 166, 129, 23);
+        add(chkMoveRightSide);
+        chkMoveRightSide.setSelected(true);
+		this.moveRightSide = true;
+        chkMoveRightSide.setEnabled(false);
+        bPlusButton.setBounds(178, 75, 80, 51);
+        add(bPlusButton);
+        bPlusButton.setEnabled(false);
+        xzPlusButton.setBounds(269, 75, 80, 51);
+        add(xzPlusButton);
+        xzPlusButton.addActionListener(e -> xzPlusButtonActionPerformed());
+        bPlusButton.addActionListener(e -> bPlusButtonActionPerformed());
+        rdbtnInch.setBounds(23, 164, 63, 26);
+        add(rdbtnInch);
+        rdbtnInch.addActionListener(e -> toggleUnits());
+        rdbtnMm.setBounds(23, 138, 63, 23);
+        add(rdbtnMm);
+        rdbtnMm.addActionListener(e -> toggleUnits());
+
+        chkMoveRightSide.addActionListener(e -> toggleMoveSide());
+        chkMoveLeftSide.addActionListener(e -> toggleMoveSide());
+        feedRateSpinner.setBounds(257, 35, 92, 25);
+        add(feedRateSpinner);
+
+        feedRateSpinner.addChangeListener(cl -> jogService.setFeedRate(feedRateSpinner.getValue()));
+        stepSizeSpinner.setBounds(257, 6, 92, 25);
+        add(stepSizeSpinner);
+        stepSizeSpinner.addChangeListener(cl -> jogService.setStepSize(stepSizeSpinner.getValue()));
+        xzMinusButton.setBounds(6, 75, 80, 51);
+        add(xzMinusButton);
+        
+        xzMinusButton.addActionListener(e -> xzMinusButtonActionPerformed());
+        yaPlusButton.setBounds(98, 12, 80, 51);
+        add(yaPlusButton);
+        yaPlusButton.addActionListener(e -> yaPlusButtonActionPerformed());
+        yaMinusButton.setBounds(98, 138, 80, 51);
+        add(yaMinusButton);
+        yaMinusButton.addActionListener(e -> yaMinusButtonActionPerformed());
+        bMinusButton.addActionListener(e -> bMinusButtonActionPerformed());
+        performHomingCycleButton.setBackground(Color.ORANGE);
+        performHomingCycleButton.setFont(new Font("DejaVu Sans", Font.BOLD, 12));
+        performHomingCycleButton.setBounds(489, 6, 121, 25);
+        add(performHomingCycleButton);
+        
+        performHomingCycleButton.addActionListener(new java.awt.event.ActionListener() {
+            @Override
+			public void actionPerformed(java.awt.event.ActionEvent evt) {
+                performHomingCycleButtonActionPerformed(evt);
+            }
+        });
+        performHomingCycleButton.setEnabled(false);
+        killAlarmLock.setBackground(Color.ORANGE);
+        killAlarmLock.setFont(new Font("DejaVu Sans", Font.BOLD, 12));
+        killAlarmLock.setBounds(489, 29, 121, 25);
+        add(killAlarmLock);
+        
+        killAlarmLock.addActionListener(new java.awt.event.ActionListener() {
+            @Override
+			public void actionPerformed(java.awt.event.ActionEvent evt) {
+                killAlarmLockActionPerformed(evt);
+            }
+        });
+        killAlarmLock.setEnabled(false);
+
+        softResetMachineControl.setBounds(489, 60, 121, 25);
+        add(softResetMachineControl);
+
+        softResetMachineControl.addActionListener(new java.awt.event.ActionListener() {
+            @Override
+			public void actionPerformed(java.awt.event.ActionEvent evt) {
+                softResetMachineControlActionPerformed(evt);
+            }
+        });
+        softResetMachineControl.setEnabled(false);
+        resetCoordinatesButton.setBackground(Color.ORANGE);
+        resetCoordinatesButton.setFont(new Font("DejaVu Sans", Font.PLAIN, 12));
+        resetCoordinatesButton.setBounds(361, 6, 122, 25);
+        add(resetCoordinatesButton);
+
+        // reset Functions
+        resetCoordinatesButton.addActionListener(new ActionListener() {
+        	public void actionPerformed(ActionEvent arg0) {
+        		resetCoordinatesButtonActionPerformed(arg0);
+        	}
+        });
+        resetCoordinatesButton.setEnabled(false);
+        
+        
+        
+        storePosition.setBounds(361, 59, 63, 25);
+        add(storePosition);
+        
+        gotoStoredPosition.setBounds(361, 82, 122, 25);
+        add(gotoStoredPosition);
+
+        storeSaveHeight.setBounds(420, 59, 63, 25);
+        add(storeSaveHeight);
+
+        storeSaveHeight.addActionListener(new ActionListener() {
+        	public void actionPerformed(ActionEvent evt) { saveActualSaveHeight(evt); }
+        });
+        storeSaveHeight.setEnabled(false);
+        
+        storePosition.addActionListener(new ActionListener() {
+        	public void actionPerformed(ActionEvent evt) { saveActualPosition(evt); }
+        });
+        storePosition.setEnabled(false);
+        
+        gotoStoredPosition.addActionListener(new ActionListener() {
+        	public void actionPerformed(ActionEvent evt) { gotoSavedPosition(evt); }
+        });
+        gotoStoredPosition.setEnabled(false);
+        
+        
+
+        helpButtonMachineControl.setBounds(489, 165, 121, 25);
+        add(helpButtonMachineControl);
+        
+        helpButtonMachineControl.addActionListener(new java.awt.event.ActionListener() {
+            @Override
+			public void actionPerformed(java.awt.event.ActionEvent evt) {
+                helpButtonMachineControlActionPerformed(evt);
+            }
+        });
+        helpButtonMachineControl.setEnabled(true);
+        btnSenderSettings.setBounds(489, 87, 121, 27);
+        add(btnSenderSettings);
+        btnSenderSettings.addActionListener(new ActionListener() {
+        	public void actionPerformed(java.awt.event.ActionEvent evt) {
+        		grblConnectionSettingsMenuItemActionPerformed(evt);
+        		
+        	}
+        });
+        btnGcodeSettings.setBounds(489, 110, 121, 27);
+        add(btnGcodeSettings);
+        btnGcodeSettings.addActionListener(new ActionListener() {
+        	public void actionPerformed(java.awt.event.ActionEvent evt) {
+        		gcodeProcessorSettingsActionPerformed(evt);
+        	}
+        });
+        btnFirmwareSettings.setBounds(489, 133, 121, 27);
+        add(btnFirmwareSettings);
+        btnFirmwareSettings.addActionListener(new ActionListener() {
+        	public void actionPerformed(java.awt.event.ActionEvent evt) {
+        		configureFirmwareActionPerformed(evt);
+        	}
+        });
+        returnToZeroButton.setBackground(Color.ORANGE);
+        returnToZeroButton.setFont(new Font("DejaVu Sans", Font.PLAIN, 12));
+        
+        returnToZeroButton.setBounds(361, 29, 122, 25);
+        add(returnToZeroButton);
+
+        returnToZeroButton.addActionListener(new java.awt.event.ActionListener() {
+            @Override
+			public void actionPerformed(java.awt.event.ActionEvent evt) {
+                returnToZeroButtonActionPerformed(evt);
+            }
+        });
+        returnToZeroButton.setEnabled(false);
+        zStoredValue.setHorizontalAlignment(SwingConstants.TRAILING);
+
+        zStoredValue.setBounds(398, 150, 50, 15);
+        add(zStoredValue);
+        
+
+        
+        
+        
+        JLabel lblZValue = new JLabel("Z");
+        lblZValue.setBounds(370, 150, 24, 15);
+        add(lblZValue);
+        
+        JLabel lblYValue = new JLabel("Y");
+        lblYValue.setBounds(370, 130, 24, 15);
+        add(lblYValue);
+        yStoredValue.setHorizontalAlignment(SwingConstants.TRAILING);
+        
+        yStoredValue.setBounds(398, 130, 50, 15);
+        add(yStoredValue);
+        
+        JLabel lblXValue = new JLabel("X");
+        lblXValue.setBounds(370, 110, 24, 15);
+        add(lblXValue);
+        xStoredValue.setHorizontalAlignment(SwingConstants.TRAILING);
+
+        xStoredValue.setBounds(398, 110, 50, 15);
+        add(xStoredValue);
+
+        
+        JLabel lblSh = new JLabel("SH");
+        lblSh.setBounds(370, 170, 24, 15);
+        add(lblSh);
+        saveHeight.setHorizontalAlignment(SwingConstants.TRAILING);
+        
+        
+        saveHeight.setBounds(398, 170, 50, 15);
+        add(saveHeight);
+        
+        unitsString01.setBounds(455, 110, 28, 15);
+        add(unitsString01);
+        unitsString02.setBounds(455, 130, 28, 15);
+        add(unitsString02);
+        unitsString03.setBounds(455, 150, 28, 15);
+        add(unitsString03);
+        unitsString04.setBounds(455, 170, 28, 15);
+        add(unitsString04);
+        
+
+        JPanel panel = new JPanel();
+        panel.setBackground(Color.ORANGE);
+        panel.setBounds(361, 56, 126, 138);
+        add(panel);
+        
+        JPanel panel_1 = new JPanel();
+        panel_1.setBackground(Color.ORANGE);
+        panel_1.setBounds(4, 4, 350, 190);
+        add(panel_1);
+
+    }
+    
+    
+    @Override
+    public void UGSEvent(UGSEvent evt) {
+
+        if (evt.isSettingChangeEvent()) {
+         	this.setSavedPositionTexts();
+        }
+    	
+    	if (evt.isStateChangeEvent() || evt.isSettingChangeEvent()) {
+         	updateControls();
+        }
+    }
+
+	private void updateControls() {
+		
+		syncWithJogService();
+		updateUnitButton();
+
+		switch (backend.getControlState()) {
+			case COMM_DISCONNECTED:
+			case COMM_SENDING_PAUSED:
+			case COMM_CHECK:
+			default:
+				updateManualControls(false);
+				break;
+			case COMM_IDLE:
+			case COMM_SENDING:
+				updateManualControls(!backend.isSendingFile());
+				break;
+		}
+	}
+
+	// Handle Side
+	
+	private void toggleMoveSide() {
+		if (chkMoveRightSide.isSelected()) { this.moveRightSide = true; } 
+		else { this.moveRightSide = false; }
+		if (chkMoveLeftSide.isSelected()) { this.moveLeftSide = true; } 
+		else { this.moveLeftSide = false; }
+		
+	}
+
+	
+	// Handle Units
+	
+	private void toggleUnits() {
+		if (getUnits() == Units.MM) {
+			jogService.setUnits(Units.INCH);
+		} else {
+			jogService.setUnits(Units.MM);
+		}
+		updateUnitButton();
+	}
+
+	private void updateUnitButton() {
+		if (getUnits() == Units.INCH){
+			rdbtnInch.setSelected(true);
+		} else {
+			rdbtnMm.setSelected(true);
+		}
+	}
+
+	private Units getUnits() {
+		return jogService.getUnits();
+	}
+
+	// ENDE - Handle Units
+	
+	
+	public void increaseStepActionPerformed() {
+		jogService.increaseStepSize();
+		stepSizeSpinner.setValue(getStepSize());
+	}
+
+	public void decreaseStepActionPerformed() {
+		jogService.decreaseStepSize();
+		stepSizeSpinner.setValue(getStepSize());
+	}
+
+	public void multiplyStepActionPerformed() {
+		jogService.multiplyStepSize();
+		stepSizeSpinner.setValue(getStepSize());
+	}
+
+	public void divideStepActionPerformed() {
+		jogService.divideStepSize();
+		stepSizeSpinner.setValue(getStepSize());
+	}
+
+    @Override
+    public void controlStateChange(UGSEvent.ControlState state) {
+    }
+
+    @Override
+    public void fileStreamComplete(String filename, boolean success) {
+
+    }
+
+    @Override
+    public void receivedAlarm(Alarm alarm) {
+
+    }
+
+    @Override
+    public void commandSkipped(GcodeCommand command) {
+
+    }
+
+    @Override
+    public void commandSent(GcodeCommand command) {
+
+    }
+
+    @Override
+    public void commandComment(String comment) {
+    }
+
+    @Override
+    public void probeCoordinates(Position p) {
+    }
+
+    @Override
+    public void commandComplete(GcodeCommand command) {
+
+    }
+
+	@Override
+	public void statusStringListener(ControllerStatus status) {
+	    updateControls();
+	    
+	    if (status == null) { return; }
+
+	    unitsActualValue = settings.getPreferredUnits();
+	    if (status.getMachineCoord() != null) {
+	    	Position machineCoord = status.getMachineCoord().getPositionIn(unitsActualValue);
+	    	
+	    	this.xActualValue = machineCoord.b;
+	    	this.yActualValue = machineCoord.x;
+	    	this.zActualValue = machineCoord.y;
+	    	this.setUnitText(unitsActualValue.abbreviation);
+	    }
+	    
+	}
+
+	private double getStepSize() {
+		double stepSize = stepSizeSpinner.getValue();
+		backend.getSettings().setManualModeStepSize(stepSize);
+		return stepSize;
+	}
+
+    // Bewegung 
+	public void doJog(int x, int y, int z, int a) {
+		try {
+			jogService.adjustManualLocation(x, y, z, a);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	public void doJog(int x, int y, int z, int a, int b) {
+		try {
+			jogService.adjustManualLocation(x, y, z, a, b);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	// ***** Buttons Actions *****
+	// ***** Steuerung *****
+
+	
+    private void resetCoordinatesButtonActionPerformed(java.awt.event.ActionEvent evt) {
+        try {
+        	if (backend.isMillMode()) {
+        		this.backend.resetCoordinatesToZeroMill();
+        	}
+        	else {
+        		this.backend.resetCoordinatesToZero();
+        	}
+        } catch (Exception ex) {
+            displayErrorDialog(ex.getMessage());
+        }
+    }
+	
+    private void returnToZeroButtonActionPerformed(java.awt.event.ActionEvent evt) {
+        try {
+            this.backend.returnToZero();
+        } catch (Exception ex) {
+            displayErrorDialog(ex.getMessage());
+        }
+    }
+	
+    private void softResetMachineControlActionPerformed(java.awt.event.ActionEvent evt) {
+        try {
+            this.backend.issueSoftReset();
+        } catch (Exception ex) {
+            displayErrorDialog(ex.getMessage());
+        }
+    }
+ 
+    private void performHomingCycleButtonActionPerformed(java.awt.event.ActionEvent evt) {
+        try {
+            this.backend.performHomingCycle();
+        } catch (Exception ex) {
+            displayErrorDialog(ex.getMessage());
+        }
+    }
+
+    private void killAlarmLockActionPerformed(java.awt.event.ActionEvent evt) {
+        try {
+            this.backend.killAlarmLock();
+        } catch (Exception ex) {
+            displayErrorDialog(ex.getMessage());
+        }
+    }
+
+    private void saveActualPosition(java.awt.event.ActionEvent evt) {
+        try {
+        	
+        	this.xSavedValue = this.xActualValue;
+        	this.ySavedValue = this.yActualValue;
+        	this.zSavedValue = this.zActualValue;
+        	this.unitsSavedValue = this.unitsActualValue;
+
+            settings.setXSavedValue(this.xSavedValue);
+        	settings.setYSavedValue(this.ySavedValue);
+        	settings.setZSavedValue(this.zSavedValue);
+        	settings.setUnitsSavedValue(this.unitsSavedValue);
+        	
+        	SettingsFactory.saveSettings(settings);
+
+            this.setSavedPositionTexts();
+
+        } catch (Exception ex) {
+            displayErrorDialog(ex.getMessage());
+        }
+    }
+    
+    private void saveActualSaveHeight(java.awt.event.ActionEvent evt) {
+        try {
+        	
+        	this.saveHeightSavedValue = this.zActualValue;
+        	settings.setSavedSaveHeight(this.saveHeightSavedValue);
+        	
+        	SettingsFactory.saveSettings(settings);
+
+            this.setSavedPositionTexts();
+
+        } catch (Exception ex) {
+            displayErrorDialog(ex.getMessage());
+        }
+    }
+
+    private void gotoSavedPosition(java.awt.event.ActionEvent evt) {
+        try {
+        	String commandText = "";
+        	commandText = "$J=G21G90Y" + Double.toString(this.saveHeightSavedValue) 
+        						 + "A" + Double.toString(this.saveHeightSavedValue) 
+        						 + "F" + Double.toString(this.feedRateSpinner.getValue());
+        	this.backend.sendGcodeCommand(commandText);
+        	commandText = "$J=G21G90B" + Double.toString(this.xSavedValue) 
+        						 + "X" + Double.toString(this.ySavedValue)  
+        						 + "Z" + Double.toString(this.ySavedValue) 
+        						 + "F" + Double.toString(this.feedRateSpinner.getValue());
+        	this.backend.sendGcodeCommand(commandText);
+        	commandText = "$J=G21G90Y" + Double.toString(this.zSavedValue) 
+        						 + "A" + Double.toString(this.zSavedValue) 
+        						 + "F" + Double.toString(this.feedRateSpinner.getValue());
+        	this.backend.sendGcodeCommand(commandText);
+        
+        } catch (Exception ex) {
+            displayErrorDialog(ex.getMessage());
+        }
+    }
+	
+	// ***** Bewegung *****
+	public void xzPlusButtonActionPerformed() {
+		if (this.moveRightSide && this.moveLeftSide) { this.doJog(1, 0, 1, 0, 0); }
+		else {
+			if (this.moveRightSide) { this.doJog(0, 0, 1, 0, 0); };
+			if (this.moveLeftSide) { this.doJog(1, 0, 0, 0, 0); };
+		};
+	}
+
+	public void xzMinusButtonActionPerformed() {
+		if (this.moveRightSide && this.moveLeftSide) { this.doJog(-1, 0, -1, 0, 0); }
+		else {
+			if (this.moveRightSide) { this.doJog(0, 0, -1, 0, 0); };
+			if (this.moveLeftSide) { this.doJog(-1, 0, 0, 0, 0); };
+		};
+	}
+
+	public void yaPlusButtonActionPerformed() {
+		if (this.moveRightSide && this.moveLeftSide) { this.doJog(0, 1, 0, 1, 0); }
+		else {
+			if (this.moveRightSide) { this.doJog(0, 0, 0, 1, 0); };
+			if (this.moveLeftSide) { this.doJog(0, 1, 0, 0, 0); };
+		};
+	}
+
+	public void yaMinusButtonActionPerformed() {
+		if (this.moveRightSide && this.moveLeftSide) { this.doJog(0, -1, 0, -1, 0); }
+		else {
+			if (this.moveRightSide) { this.doJog(0, 0, 0, -1, 0); };
+			if (this.moveLeftSide) { this.doJog(0, -1, 0, 0, 0); };
+		};
+	}
+
+	public void bPlusButtonActionPerformed() {
+		if (backend.isMillMode()) { this.doJog(0, 0, 0, 0, 1); };
+	}
+
+	public void bMinusButtonActionPerformed() {
+		if (backend.isMillMode()) { this.doJog(0, 0, 0, 0, -1); };
+	}
+	// ***** Ende Buttons Actions *****
+
+	
+	// ***** Enable/Disable Actions *****
+
+	public void updateManualControls(boolean enabled) {
+		
+		// Always enabled
+		this.helpButtonMachineControl.setEnabled(true);
+		this.btnSenderSettings.setEnabled(true);
+		this.btnGcodeSettings.setEnabled(true);
+		
+		// Enabled when connected
+		this.killAlarmLock.setEnabled(enabled);
+		this.softResetMachineControl.setEnabled(enabled);
+		this.returnToZeroButton.setEnabled(enabled);
+		this.resetCoordinatesButton.setEnabled(enabled);
+		this.storePosition.setEnabled(enabled);
+		this.storeSaveHeight.setEnabled(enabled);
+		this.gotoStoredPosition.setEnabled(enabled);
+		this.performHomingCycleButton.setEnabled(enabled);
+		this.btnFirmwareSettings.setEnabled(enabled);
+		this.yaMinusButton.setEnabled(enabled);
+		this.yaPlusButton.setEnabled(enabled);
+		this.xzMinusButton.setEnabled(enabled);
+		this.xzPlusButton.setEnabled(enabled);
+		this.feedRateSpinner.setEnabled(enabled);
+		this.stepSizeSpinner.setEnabled(enabled);
+		this.feedRateLabel.setEnabled(enabled);
+		this.stepSizeLabel.setEnabled(enabled);
+		this.rdbtnMm.setEnabled(enabled);
+		this.rdbtnInch.setEnabled(enabled);
+		
+		// Enabled depending Mill or HotWire
+		if (enabled == false) {
+			this.bPlusButton.setEnabled(enabled);
+			this.bMinusButton.setEnabled(enabled);
+			this.chkMoveLeftSide.setSelected(true);
+			this.chkMoveRightSide.setSelected(true);
+			this.chkMoveLeftSide.setEnabled(false);
+			this.chkMoveRightSide.setEnabled(false);
+		}
+		else {
+			if (this.backend.isMillMode()) {
+				this.bPlusButton.setEnabled(true);
+				this.bMinusButton.setEnabled(true);
+				this.chkMoveLeftSide.setEnabled(false);
+				this.chkMoveRightSide.setEnabled(false);
+				this.chkMoveLeftSide.setSelected(true);
+				this.chkMoveRightSide.setSelected(true);
+			}
+			else {
+				this.bPlusButton.setEnabled(false);
+				this.bMinusButton.setEnabled(false);
+				this.chkMoveLeftSide.setEnabled(true);
+				this.chkMoveRightSide.setEnabled(true);
+			};
+		};
+	
+	}
+	
+	// Dialoge
+	private void grblConnectionSettingsMenuItemActionPerformed(java.awt.event.ActionEvent evt) {
+
+		JFrame topFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
+		
+		StandardDialogTemplate gcsd = new StandardDialogTemplate(
+				"General Settings",
+				new ProgramSettingsPanel(settings),
+				topFrame, true);
+  
+		gcsd.setBounds(topFrame.getX() + 10, topFrame.getY() + 10, gcsd.getDialogWidth(), gcsd.getDialogHeight());
+		gcsd.toggleRestoreButton(true);
+		gcsd.setVisible(true);
+  
+		if (gcsd.saveChanges()) {
+			try {
+				backend.applySettings(settings);
+			} catch (Exception e) {
+				displayErrorDialog(e.getMessage());
+			}
+		}
+		
+		this.setSavedPositionTexts();
+	}
+   
+	private void gcodeProcessorSettingsActionPerformed(java.awt.event.ActionEvent evt) {
+
+		JFrame topFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
+		
+		StandardDialogTemplate gcsd = new StandardDialogTemplate(
+				"GRBL Settings",
+				new ControllerProcessorSettingsPanel(settings, FirmwareUtils.getConfigFiles()),
+				topFrame, true);
+
+		gcsd.setBounds(topFrame.getX() + 10, topFrame.getY() + 10, gcsd.getDialogWidth(), gcsd.getDialogHeight());
+		gcsd.toggleRestoreButton(false);
+		gcsd.setVisible(true);
+
+		if (gcsd.saveChanges()) {
+			try {
+				backend.applySettings(settings);
+			} catch (Exception e) {
+				displayErrorDialog(e.getMessage());
+			}
+		}
+	}
+
+	private void configureFirmwareActionPerformed(java.awt.event.ActionEvent evt) {
+
+		JFrame topFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
+
+        try {
+            if (!this.backend.isConnected()) {
+                displayErrorDialog("Not connected");
+            } else if (this.backend.getController().getCapabilities().hasFirmwareSettings()) {
+                FirmwareSettingsDialog gfsd =
+                        new FirmwareSettingsDialog(new JFrame(), true, this.backend);
+                gfsd.setBounds(topFrame.getX() + 10, topFrame.getY() + 10, 500, 300);
+                gfsd.setVisible(true);
+            }
+            // Add additional firmware setting windows here.
+            else {
+                displayErrorDialog("No firmwares found.");
+            }
+        } catch (Exception ex) {
+            displayErrorDialog(ex.getMessage());
+        }
+		
+		
+	}
+
+	
+    private void helpButtonMachineControlActionPerformed(java.awt.event.ActionEvent evt) {
+        StringBuilder message = new StringBuilder()
+        .append("Reset zero: Changes the current coordinates to zero without moving the machine.").append("\n")
+        .append("Return to zero: Moves machine to 0, 0, 0, 0, 0 location.").append("\n")
+        .append("Soft Reset: Reset the controller state without updating position.").append("\n")
+        .append("Home Machine: Begin homing cycle.").append("\n")
+        .append("Unlock: Disables the controller alarm lock.").append("\n")
+        .append("Get State: Requests state information from the controller (result output to console).").append("\n")
+        .append("- Keyboard Control:").append("\n")
+        .append("--> XZ: Arrow: Left/Right; KeyPad: Left/Right; Numpad: 4/6").append("\n")
+        .append("--> YA: Arrow: Up/Down; KeyPad: Left/Right; Numpad: 8/2").append("\n")
+        .append("--> B : KeyPad: End/PgDn; Numpad: 1/3").append("\n")
+        ;
+
+        JOptionPane.showMessageDialog(new JFrame(),
+            message,
+            "Machine Control Help",
+            JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void setUnitText(String aUnitText) {
+
+    	unitsString01.setText(aUnitText);
+    	unitsString02.setText(aUnitText);
+    	unitsString03.setText(aUnitText);
+    	unitsString04.setText(aUnitText);
+    	
+    }
+
+    private void setSavedPositionTexts() {
+        
+        xSavedValue = settings.getXSavedValue();
+    	ySavedValue = settings.getYSavedValue();
+        zSavedValue = settings.getZSavedValue();
+        saveHeightSavedValue = settings.getSavedSaveHeight();
+        unitsSavedValue = settings.getUnitsSavedValue();
+        
+        this.setUnitText(unitsSavedValue.abbreviation);
+
+        this.xStoredValue.setText( Utils.formatter.format(xSavedValue));
+        this.yStoredValue.setText( Utils.formatter.format(ySavedValue));
+        this.zStoredValue.setText( Utils.formatter.format(zSavedValue));
+        
+        this.saveHeight.setText( Utils.formatter.format(saveHeightSavedValue));
+    	
+    }
+}

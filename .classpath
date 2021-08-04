@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER">
+		<attributes>
+			<attribute name="module" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="/home/Stephan.Geberl/eclipse-workspace/GCodeSender/jar/commons-csv-1.8.jar"/>
+	<classpathentry kind="lib" path="/home/Stephan.Geberl/eclipse-workspace/GCodeSender/jar/commons-io-2.8.0.jar"/>
+	<classpathentry kind="lib" path="/home/Stephan.Geberl/eclipse-workspace/GCodeSender/jar/commons-lang3-3.12.0.jar"/>
+	<classpathentry kind="lib" path="/home/Stephan.Geberl/eclipse-workspace/GCodeSender/jar/gson-2.2.2.jar"/>
+	<classpathentry kind="lib" path="/home/Stephan.Geberl/eclipse-workspace/GCodeSender/jar/guava-21.0.jar"/>
+	<classpathentry kind="lib" path="/home/Stephan.Geberl/eclipse-workspace/GCodeSender/jar/jSerialComm-2.6.2.jar"/>
+	<classpathentry kind="lib" path="/home/Stephan.Geberl/eclipse-workspace/GCodeSender/jar/jssc-2.9.2.jar"/>
+	<classpathentry kind="lib" path="/home/Stephan.Geberl/eclipse-workspace/GCodeSender/jar/swing-layout-1.0.4.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>
