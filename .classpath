@@ -6,13 +6,13 @@
 			<attribute name="module" value="true"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry kind="lib" path="/home/Stephan.Geberl/git/GCodeSender/jar/commons-csv-1.8.jar"/>
-	<classpathentry kind="lib" path="/home/Stephan.Geberl/git/GCodeSender/jar/commons-io-2.8.0.jar"/>
-	<classpathentry kind="lib" path="/home/Stephan.Geberl/git/GCodeSender/jar/commons-lang3-3.12.0.jar"/>
-	<classpathentry kind="lib" path="/home/Stephan.Geberl/git/GCodeSender/jar/gson-2.2.2.jar"/>
-	<classpathentry kind="lib" path="/home/Stephan.Geberl/git/GCodeSender/jar/guava-21.0.jar"/>
-	<classpathentry kind="lib" path="/home/Stephan.Geberl/git/GCodeSender/jar/jSerialComm-2.6.2.jar"/>
-	<classpathentry kind="lib" path="/home/Stephan.Geberl/git/GCodeSender/jar/jssc-2.9.2.jar"/>
-	<classpathentry kind="lib" path="/home/Stephan.Geberl/git/GCodeSender/jar/swing-layout-1.0.4.jar"/>
+	<classpathentry kind="lib" path="jar/commons-csv-1.8.jar"/>
+	<classpathentry kind="lib" path="jar/commons-io-2.8.0.jar"/>
+	<classpathentry kind="lib" path="jar/commons-lang3-3.12.0.jar"/>
+	<classpathentry kind="lib" path="jar/gson-2.2.2.jar"/>
+	<classpathentry kind="lib" path="jar/guava-21.0.jar"/>
+	<classpathentry kind="lib" path="jar/jSerialComm-2.6.2.jar"/>
+	<classpathentry kind="lib" path="jar/jssc-2.9.2.jar"/>
+	<classpathentry kind="lib" path="jar/swing-layout-1.0.4.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
