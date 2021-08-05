@@ -43,7 +43,7 @@ import javax.swing.*;
 
 import java.awt.Toolkit;
 import javax.swing.text.DefaultEditorKit;
-import org.apache.commons.lang3.SystemUtils;
+// import org.apache.commons.lang3.SystemUtils;
 
 import com.geberl.gcodesender.model.BackendAPI;
 import com.geberl.gcodesender.model.GUIBackend;
@@ -143,7 +143,7 @@ public class GrblSenderWindow extends JFrame {
         }
 
         // Fix look and feel to use CMD+C/X/V/A instead of CTRL
-        if (SystemUtils.IS_OS_MAC)
+/*        if (SystemUtils.IS_OS_MAC)
         {
             Collection<InputMap> ims = new ArrayList<>();
             ims.add((InputMap) UIManager.get("TextField.focusInputMap"));
@@ -167,7 +167,7 @@ public class GrblSenderWindow extends JFrame {
                 im.put(KeyStroke.getKeyStroke(a, meta), DefaultEditorKit.selectAllAction);
             }
         }
-        
+*/        
          /* Create the form */
         GUIBackend backend = new GUIBackend();
         final GrblSenderWindow mw = new GrblSenderWindow(backend);
