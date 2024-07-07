@@ -1,5 +1,5 @@
 /*
-    Copyright 2020 Stephan Geberl
+    Copyright 2024 Stephan Geberl
 
     This file is part of Universal Gcode Sender (UGS) (5 Axis-Version).
 
