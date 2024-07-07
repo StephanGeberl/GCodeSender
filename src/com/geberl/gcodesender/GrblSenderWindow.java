@@ -1,5 +1,5 @@
 /*
-    Copyright 2020, 2021, 2022, 2023 Stephan Geberl
+    Copyright 2021,2022,2023,2024 Stephan Geberl
 
     This file is part of WireCutter/Mill GCode - Sender (WGS) (5 Axis-Version).
     WGS is derived from UGS by Will Winder (2012 - 2018)
